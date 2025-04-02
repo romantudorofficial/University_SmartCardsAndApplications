@@ -1,13 +1,12 @@
 /** 
  * Copyright (c) 1998, 2021, Oracle and/or its affiliates. All rights reserved.
- * 
  */
 
 /*
  */
 
 /*
- * @(#)Wallet.java	1.11 06/01/03
+ * @(#)Wallet.java 1.11 06/01/03
  */
 
 package com.oracle.jcclassic.samples.wallet;
@@ -31,14 +30,14 @@ public class Wallet extends Applet {
     final static byte CREDIT = (byte) 0x30;
     final static byte DEBIT = (byte) 0x40;
     final static byte GET_BALANCE = (byte) 0x50;
-    final static byte RESET_PIN = (byte) 0x2C; 		// Laboratory 4 - Task 2
+    final static byte RESET_PIN = (byte) 0x2C;         // Laboratory 4 - Task 2
 
     // maximum balance
     final static short MAX_BALANCE = 0x7FFF;
     // maximum transaction amount
-    final static int MAX_TRANSACTION_AMOUNT = 1000; // Homework 1 - it was short 127
+    final static int MAX_TRANSACTION_AMOUNT = 1000;
     // maximum number of loyalty points
-    final static int MAX_LOYALTY_POINTS = 300; // Homework 1 - maximum loyalty points
+    final static int MAX_LOYALTY_POINTS = 300;
 
     // maximum number of incorrect tries before the
     // PIN is blocked
@@ -54,90 +53,66 @@ public class Wallet extends Applet {
     // signal invalid transaction amount
     // amount > MAX_TRANSACTION_AMOUNT or amount < 0
     final static short SW_INVALID_TRANSACTION_AMOUNT = 0x6A83;
-
     // signal that the balance exceed the maximum
     final static short SW_EXCEED_MAXIMUM_BALANCE = 0x6A84;
-    // signal the the balance becomes negative
+    // signal the balance becomes negative or insufficient funds
     final static short SW_NEGATIVE_BALANCE = 0x6A85;
 
     /* instance variables declaration */
     OwnerPIN pin;
-    short balance, balanceRON, balanceLoyaltyPoints;
+    short balanceRON;            // RON balance
+    short balanceLoyaltyPoints;  // Loyalty points balance
     private final byte[] pukCode = {0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09}; 
 
     private Wallet(byte[] bArray, short bOffset, byte bLength) {
 
-        // It is good programming practice to allocate
-        // all the memory that an applet needs during
-        // its lifetime inside the constructor
+        // Allocate all memory needed during applet lifetime in the constructor
         pin = new OwnerPIN(PIN_TRY_LIMIT, MAX_PIN_SIZE);
 
-        byte iLen = bArray[bOffset]; // aid length
+        byte iLen = bArray[bOffset]; // AID length
         bOffset = (short) (bOffset + iLen + 1);
         byte cLen = bArray[bOffset]; // info length
         bOffset = (short) (bOffset + cLen + 1);
         byte aLen = bArray[bOffset]; // applet data length
 
-        // The installation parameters contain the PIN
-        // initialization value
+        // The installation parameters contain the PIN initialization value
         pin.update(bArray, (short) (bOffset + 1), aLen);
         register();
-
-    } // end of the constructor
+    } // end of constructor
 
     public static void install(byte[] bArray, short bOffset, byte bLength) {
-        // create a Wallet applet instance
         new Wallet(bArray, bOffset, bLength);
     } // end of install method
 
     @Override
     public boolean select() {
-
-        // The applet declines to be selected
-        // if the pin is blocked.
+        // Decline selection if the PIN is blocked.
         if (pin.getTriesRemaining() == 0) {
             return false;
         }
-
         return true;
-
-    }// end of select method
+    } // end of select method
 
     @Override
     public void deselect() {
-
-        // reset the pin value
+        // reset the PIN value
         pin.reset();
-
     }
 
     @Override
     public void process(APDU apdu) {
 
-        // APDU object carries a byte array (buffer) to
-        // transfer incoming and outgoing APDU header
-        // and data bytes between card and CAD
-
-        // At this point, only the first header bytes
-        // [CLA, INS, P1, P2, P3] are available in
-        // the APDU buffer.
-        // The interface javacard.framework.ISO7816
-        // declares constants to denote the offset of
-        // these bytes in the APDU buffer
-
         byte[] buffer = apdu.getBuffer();
-        // check SELECT APDU command
 
+        // Check for SELECT APDU command
         if (apdu.isISOInterindustryCLA()) {
-            if (buffer[ISO7816.OFFSET_INS] == (byte) (0xA4)) {
+            if (buffer[ISO7816.OFFSET_INS] == (byte) 0xA4) {
                 return;
             }
             ISOException.throwIt(ISO7816.SW_CLA_NOT_SUPPORTED);
         }
 
-        // verify the reset of commands have the
-        // correct CLA byte, which specifies the
-        // command structure
+        // Verify that commands have the correct CLA
         if (buffer[ISO7816.OFFSET_CLA] != Wallet_CLA) {
             ISOException.throwIt(ISO7816.SW_CLA_NOT_SUPPORTED);
         }
@@ -156,174 +131,165 @@ public class Wallet extends Applet {
                 verify(apdu);
                 return;
             case RESET_PIN:
-            	reset_pin_try_counter(apdu);		// Laboratory 4 - Task 1	
-            	return;
+                reset_pin_try_counter(apdu);  // Laboratory 4 - Task 1	
+                return;
             default:
                 ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
         }
-
     } // end of process method
 
     private void credit(APDU apdu) {
 
-        // access authentication
+        // Require successful PIN verification
         if (!pin.isValidated()) {
             ISOException.throwIt(SW_PIN_VERIFICATION_REQUIRED);
         }
 
         byte[] buffer = apdu.getBuffer();
-
-        // Lc byte denotes the number of bytes in the
-        // data field of the command APDU
         byte numBytes = buffer[ISO7816.OFFSET_LC];
-
-        // indicate that this APDU has incoming data
-        // and receive data starting from the offset
-        // ISO7816.OFFSET_CDATA following the 5 header
-        // bytes.
         byte byteRead = (byte) (apdu.setIncomingAndReceive());
 
-        // it is an error if the number of data bytes
-        // read does not match the number in Lc byte
         if ((numBytes != 1) || (byteRead != 1)) {
             ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
         }
 
-        // get the credit amount
         byte creditAmount = buffer[ISO7816.OFFSET_CDATA];
 
-        // check the credit amount
         if ((creditAmount > MAX_TRANSACTION_AMOUNT) || (creditAmount < 0)) {
             ISOException.throwIt(SW_INVALID_TRANSACTION_AMOUNT);
         }
 
-        // check the new balance
-        if ((short) (balanceRON + creditAmount) > MAX_BALANCE) {
+        if ((short)(balanceRON + creditAmount) > MAX_BALANCE) {
             ISOException.throwIt(SW_EXCEED_MAXIMUM_BALANCE);
         }
 
-        // credit the amount
-        balanceRON = (short) (balanceRON + creditAmount);
-
-    } // end of deposit method
+        balanceRON = (short)(balanceRON + creditAmount);
+    } // end of credit method
 
     private void debit(APDU apdu) {
 
-        // access authentication
+        // Require PIN verification
         if (!pin.isValidated()) {
             ISOException.throwIt(SW_PIN_VERIFICATION_REQUIRED);
         }
 
         byte[] buffer = apdu.getBuffer();
-
-        byte numBytes = (buffer[ISO7816.OFFSET_LC]);
-
+        byte p1 = buffer[ISO7816.OFFSET_P1]; // Payment method indicator
+        byte numBytes = buffer[ISO7816.OFFSET_LC];
         byte byteRead = (byte) (apdu.setIncomingAndReceive());
 
-        if ((numBytes != 1) || (byteRead != 1)) {
-            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        // Process according to payment method
+        if (p1 == 0x01) { // RON only
+            if ((numBytes != 1) || (byteRead != 1)) {
+                ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+            }
+            byte debitAmount = buffer[ISO7816.OFFSET_CDATA];
+            if ((debitAmount > MAX_TRANSACTION_AMOUNT) || (debitAmount < 0)) {
+                ISOException.throwIt(SW_INVALID_TRANSACTION_AMOUNT);
+            }
+            if ((short)(balanceRON - debitAmount) < 0) {
+                ISOException.throwIt(SW_NEGATIVE_BALANCE);
+            }
+            balanceRON = (short)(balanceRON - debitAmount);
+            // Award loyalty points: 1 point for every 20 RON spent.
+            byte pointsEarned = (byte)(debitAmount / 20);
+            int newPoints = balanceLoyaltyPoints + pointsEarned;
+            balanceLoyaltyPoints = (short)((newPoints > MAX_LOYALTY_POINTS) ? MAX_LOYALTY_POINTS : newPoints);
+        } else if (p1 == 0x02) { // Points only
+            if ((numBytes != 1) || (byteRead != 1)) {
+                ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+            }
+            byte debitPoints = buffer[ISO7816.OFFSET_CDATA];
+            if ((debitPoints > MAX_TRANSACTION_AMOUNT) || (debitPoints < 0)) {
+                ISOException.throwIt(SW_INVALID_TRANSACTION_AMOUNT);
+            }
+            if ((short)(balanceLoyaltyPoints - debitPoints) < 0) {
+                ISOException.throwIt(SW_NEGATIVE_BALANCE);
+            }
+            balanceLoyaltyPoints = (short)(balanceLoyaltyPoints - debitPoints);
+        } else if (p1 == 0x03) { // Combination payment
+            if ((numBytes != 2) || (byteRead != 2)) {
+                ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+            }
+            byte ronPart = buffer[ISO7816.OFFSET_CDATA];
+            byte pointsPart = buffer[(short)(ISO7816.OFFSET_CDATA + 1)];
+            int totalAmount = (ronPart & 0xFF) + (pointsPart & 0xFF);
+            if ((totalAmount > MAX_TRANSACTION_AMOUNT) || (totalAmount < 0)) {
+                ISOException.throwIt(SW_INVALID_TRANSACTION_AMOUNT);
+            }
+            if ((short)(balanceRON - ronPart) < 0) {
+                ISOException.throwIt(SW_NEGATIVE_BALANCE);
+            }
+            if ((short)(balanceLoyaltyPoints - pointsPart) < 0) {
+                ISOException.throwIt(SW_NEGATIVE_BALANCE);
+            }
+            balanceRON = (short)(balanceRON - ronPart);
+            balanceLoyaltyPoints = (short)(balanceLoyaltyPoints - pointsPart);
+            // Award loyalty points for the RON portion (if any)
+            byte pointsEarned = (byte)(ronPart / 20);
+            int newPoints = balanceLoyaltyPoints + pointsEarned;
+            balanceLoyaltyPoints = (short)((newPoints > MAX_LOYALTY_POINTS) ? MAX_LOYALTY_POINTS : newPoints);
+        } else {
+            // Unknown payment method
+            ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
         }
-
-        // get debit amount
-        byte debitAmount = buffer[ISO7816.OFFSET_CDATA];
-
-        // check debit amount
-        if ((debitAmount > MAX_TRANSACTION_AMOUNT) || (debitAmount < 0)) {
-            ISOException.throwIt(SW_INVALID_TRANSACTION_AMOUNT);
-        }
-
-        // check the new balance
-        if ((short) (balanceRON - debitAmount) < (short) 0) {
-            ISOException.throwIt(SW_NEGATIVE_BALANCE);
-        }
-
-        balanceRON = (short) (balanceRON - debitAmount);
-
     } // end of debit method
 
     private void getBalance(APDU apdu) {
 
         byte[] buffer = apdu.getBuffer();
-
-        // inform system that the applet has finished
-        // processing the command and the system should
-        // now prepare to construct a response APDU
-        // which contains data field
+        // Expect one byte indicating which balance to return: 0x01 = RON, 0x02 = loyalty points.
+        byte numBytes = buffer[ISO7816.OFFSET_LC];
+        byte byteRead = (byte) (apdu.setIncomingAndReceive());
+        if ((numBytes != 1) || (byteRead != 1)) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+        byte option = buffer[ISO7816.OFFSET_CDATA];
+        short balanceToReturn;
+        if (option == 0x01) {
+            balanceToReturn = balanceRON;
+        } else if (option == 0x02) {
+            balanceToReturn = balanceLoyaltyPoints;
+        } else {
+            // Undefined option: throw error
+            ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
+            return;
+        }
+        
         short le = apdu.setOutgoing();
-
         if (le < 2) {
             ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
         }
-        
-        // Get the byte telling which value to show (RON or loyalty points).
-        byte offsetCData = ISO7816.OFFSET_CDATA;
-
-        // Check if byte is 0 - RON or 1 loyalty points and change balance accordingly.
-        /* if (Util.arrayCompare(buffer, offsetCData, 1, (short)0, (short)8) == 0)
-        {
-        	buffer[0] = (byte) (balanceRON >> 8);
-        	buffer[1] = (byte) (balanceRON & 0xFF);
-        }
-        else
-        {
-        	buffer[0] = (byte) (balanceLoyaltyPoints >> 8);
-        	buffer[1] = (byte) (balanceLoyaltyPoints & 0xFF);	
-        }
-        */
-        
-        // informs the CAD the actual number of bytes
-        // returned
-        apdu.setOutgoingLength((byte) 2);
-
-        // move the balance data into the APDU buffer
-        // starting at the offset 0
-        buffer[0] = (byte) (balanceRON >> 8);
-        buffer[1] = (byte) (balanceRON & 0xFF);
-
-        // send the 2-byte balance at the offset
-        // 0 in the apdu buffer
-        apdu.sendBytes((short) 0, (short) 2);
-
+        buffer[0] = (byte)(balanceToReturn >> 8);
+        buffer[1] = (byte)(balanceToReturn & 0xFF);
+        apdu.setOutgoingLength((byte)2);
+        apdu.sendBytes((short)0, (short)2);
     } // end of getBalance method
 
     private void verify(APDU apdu) {
 
-        // Laboratory 4 - Task 1
-        if (pin.getTriesRemaining() == 0)
-        {
-        	ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+        if (pin.getTriesRemaining() == 0) {
+            ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
         }
            
         byte[] buffer = apdu.getBuffer();
-        // retrieve the PIN data for validation.
-        byte byteRead = (byte) (apdu.setIncomingAndReceive());
-
-        // check pin
-        // the PIN data is read into the APDU buffer
-        // at the offset ISO7816.OFFSET_CDATA
-        // the PIN data length = byteRead
+        byte byteRead = (byte)(apdu.setIncomingAndReceive());
         if (pin.check(buffer, ISO7816.OFFSET_CDATA, byteRead) == false) {
             ISOException.throwIt(SW_VERIFICATION_FAILED);
         }
-    } // end of validate method
-    
+    } // end of verify method
     
     // Laboratory 4 - Task 2
-    private void reset_pin_try_counter(APDU apdu)
-    {
-    	if (pin.getTriesRemaining() == 0)
-    	{	
+    private void reset_pin_try_counter(APDU apdu) {
+        if (pin.getTriesRemaining() == 0) {  
             byte[] buffer = apdu.getBuffer();
             byte offsetCData = ISO7816.OFFSET_CDATA;
-
-            if (Util.arrayCompare(buffer, offsetCData, pukCode, (short)0, (short)8) == 0)
-            {
-            	pin.resetAndUnblock();
+            if (Util.arrayCompare(buffer, offsetCData, pukCode, (short)0, (short)8) == 0) {
+                pin.resetAndUnblock();
+            } else {
+                ISOException.throwIt(SW_VERIFICATION_FAILED);
             }
-            else
-            {
-            	ISOException.throwIt(SW_VERIFICATION_FAILED);
-            }
-    	}
+        }
     } // end of reset_pin_try_counter method
+
 } // end of class Wallet
