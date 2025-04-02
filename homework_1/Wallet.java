@@ -166,106 +166,140 @@ public class Wallet extends Applet {
         balanceRON = (short)(balanceRON + creditAmount);
     } // end of credit method
 
-    private void debit(APDU apdu) {
-
-        // Require PIN verification
-        if (!pin.isValidated()) {
+    
+    private void debit (APDU apdu)
+    {
+        // Require PIN verification.
+        if (!pin.isValidated())
             ISOException.throwIt(SW_PIN_VERIFICATION_REQUIRED);
-        }
 
         byte[] buffer = apdu.getBuffer();
-        byte p1 = buffer[ISO7816.OFFSET_P1]; // Payment method indicator
+        
+        // Payment method indicator
+        byte p1 = buffer[ISO7816.OFFSET_P1];
+        
         byte numBytes = buffer[ISO7816.OFFSET_LC];
         byte byteRead = (byte) (apdu.setIncomingAndReceive());
 
         // Process according to payment method
-        if (p1 == 0x01) { // RON only
-            if ((numBytes != 1) || (byteRead != 1)) {
+        if (p1 == 0x01)
+        {
+        	// RON only
+        	
+            if ((numBytes != 1) || (byteRead != 1))
                 ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
-            }
+            
             byte debitAmount = buffer[ISO7816.OFFSET_CDATA];
-            if ((debitAmount > MAX_TRANSACTION_AMOUNT) || (debitAmount < 0)) {
+            
+            if ((debitAmount > MAX_TRANSACTION_AMOUNT) || (debitAmount < 0))
                 ISOException.throwIt(SW_INVALID_TRANSACTION_AMOUNT);
-            }
-            if ((short)(balanceRON - debitAmount) < 0) {
+            
+            if ((short)(balanceRON - debitAmount) < 0)
                 ISOException.throwIt(SW_NEGATIVE_BALANCE);
-            }
+            
             balanceRON = (short)(balanceRON - debitAmount);
+            
             // Award loyalty points: 1 point for every 20 RON spent.
             byte pointsEarned = (byte)(debitAmount / 20);
             int newPoints = balanceLoyaltyPoints + pointsEarned;
             balanceLoyaltyPoints = (short)((newPoints > MAX_LOYALTY_POINTS) ? MAX_LOYALTY_POINTS : newPoints);
-        } else if (p1 == 0x02) { // Points only
-            if ((numBytes != 1) || (byteRead != 1)) {
+        }
+        else if (p1 == 0x02)
+        {
+        	// Points only
+        	
+            if ((numBytes != 1) || (byteRead != 1))
                 ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
-            }
+            
             byte debitPoints = buffer[ISO7816.OFFSET_CDATA];
-            if ((debitPoints > MAX_TRANSACTION_AMOUNT) || (debitPoints < 0)) {
+            
+            if ((debitPoints > MAX_TRANSACTION_AMOUNT) || (debitPoints < 0))
                 ISOException.throwIt(SW_INVALID_TRANSACTION_AMOUNT);
-            }
-            if ((short)(balanceLoyaltyPoints - debitPoints) < 0) {
+            
+            if ((short)(balanceLoyaltyPoints - debitPoints) < 0)
                 ISOException.throwIt(SW_NEGATIVE_BALANCE);
-            }
+            
             balanceLoyaltyPoints = (short)(balanceLoyaltyPoints - debitPoints);
-        } else if (p1 == 0x03) { // Combination payment
-            if ((numBytes != 2) || (byteRead != 2)) {
+        }
+        else if (p1 == 0x03)
+        {
+        	// Combination payment
+        	
+            if ((numBytes != 2) || (byteRead != 2))
                 ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
-            }
+            
             byte ronPart = buffer[ISO7816.OFFSET_CDATA];
             byte pointsPart = buffer[(short)(ISO7816.OFFSET_CDATA + 1)];
             int totalAmount = (ronPart & 0xFF) + (pointsPart & 0xFF);
-            if ((totalAmount > MAX_TRANSACTION_AMOUNT) || (totalAmount < 0)) {
+            
+            if ((totalAmount > MAX_TRANSACTION_AMOUNT) || (totalAmount < 0))
                 ISOException.throwIt(SW_INVALID_TRANSACTION_AMOUNT);
-            }
-            if ((short)(balanceRON - ronPart) < 0) {
+            
+            if ((short)(balanceRON - ronPart) < 0)
                 ISOException.throwIt(SW_NEGATIVE_BALANCE);
-            }
-            if ((short)(balanceLoyaltyPoints - pointsPart) < 0) {
+            
+            if ((short)(balanceLoyaltyPoints - pointsPart) < 0)
                 ISOException.throwIt(SW_NEGATIVE_BALANCE);
-            }
+            
             balanceRON = (short)(balanceRON - ronPart);
             balanceLoyaltyPoints = (short)(balanceLoyaltyPoints - pointsPart);
-            // Award loyalty points for the RON portion (if any)
+            
+            // Award loyalty points for the RON portion (if any).
             byte pointsEarned = (byte)(ronPart / 20);
             int newPoints = balanceLoyaltyPoints + pointsEarned;
             balanceLoyaltyPoints = (short)((newPoints > MAX_LOYALTY_POINTS) ? MAX_LOYALTY_POINTS : newPoints);
-        } else {
+        }
+        else
+        {
             // Unknown payment method
+        	
             ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
         }
-    } // end of debit method
+    }
 
-    private void getBalance(APDU apdu) {
-
+    
+    private void getBalance (APDU apdu)
+    {
         byte[] buffer = apdu.getBuffer();
+        
         // Expect one byte indicating which balance to return: 0x01 = RON, 0x02 = loyalty points.
+        
         byte numBytes = buffer[ISO7816.OFFSET_LC];
         byte byteRead = (byte) (apdu.setIncomingAndReceive());
-        if ((numBytes != 1) || (byteRead != 1)) {
+        
+        if ((numBytes != 1) || (byteRead != 1))
             ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
-        }
+        
         byte option = buffer[ISO7816.OFFSET_CDATA];
+        
         short balanceToReturn;
-        if (option == 0x01) {
+        
+        if (option == 0x01)
             balanceToReturn = balanceRON;
-        } else if (option == 0x02) {
+        
+        else if (option == 0x02)
             balanceToReturn = balanceLoyaltyPoints;
-        } else {
-            // Undefined option: throw error
+        
+        else
+        {
+            // Undefined option
             ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
             return;
         }
         
         short le = apdu.setOutgoing();
-        if (le < 2) {
+        
+        if (le < 2)
             ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
-        }
+        
         buffer[0] = (byte)(balanceToReturn >> 8);
         buffer[1] = (byte)(balanceToReturn & 0xFF);
+        
         apdu.setOutgoingLength((byte)2);
         apdu.sendBytes((short)0, (short)2);
-    } // end of getBalance method
+    }
 
+    
     private void verify(APDU apdu) {
 
         if (pin.getTriesRemaining() == 0) {
