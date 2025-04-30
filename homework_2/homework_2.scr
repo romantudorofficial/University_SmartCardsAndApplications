@@ -4,78 +4,341 @@ output on;
 
 
 
-// Create the Wallet instance.
-// State Before: n/a
-// State After: card installed
-0x80 0xB8 0x00 0x00 0x14 0x0A 0xA0 0x00 0x00 0x00 0x62 0x03 0x01 0x0C 0x06 0x01 0x08 0x00 0x00 0x05 0x01 0x02 0x03 0x04 0x05 0x7F;
+//	Create the Wallet instance.
+//	State Before:
+//		- card is not installed
+//	State After:
+//		- card is installed
+//		- SW1: 90
 
-// Select the Wallet applet.
-// State Before: card installed
-// State After: applet selected
-0x00 0xA4 0x04 0x00 0x0A 0xA0 0x00 0x00 0x00 0x62 0x03 0x01 0x0C 0x06 0x01 0x7F;
+0x80 0xB8 0x00 0x00 0x14 0x0a 0xa0 0x00 0x00 0x00 0x62 0x03 0x01 0x0C 0x06 0x01 0x08 0x00 0x00 0x05 0x01 0x02 0x03 0x04 0x05 0x7F;
 
-// Verify PIN (incorrect)
-// State Before: tries=3, PIN not validated
-// State After: tries=2, PIN not validated
-0x80 0x20 0x00 0x00 0x08 0x37 0x36 0x35 0x34 0x33 0x32 0x31 0x30 0x7F;
 
-// Verify PIN (correct = "12345678")
-// State Before: tries=2, PIN not validated
-// State After: tries reset=3, PIN validated
-0x80 0x20 0x00 0x00 0x08 0x31 0x32 0x33 0x34 0x35 0x36 0x37 0x38 0x7F;
 
-// Credit 100 RON
-// State Before: balance=0
-// State After: balance=100
+//	Select the Wallet applet.
+// 	State Before:
+//		- card is installed
+//		- applet is not selected
+// 	State After:
+//		- card is installed
+//		- applet is selected
+//		- SW1: 90
+
+0x00 0xA4 0x04 0x00 0x0a 0xa0 0x00 0x00 0x00 0x62 0x03 0x01 0x0C 0x06 0x01 0x7F;
+
+
+
+//	Verify PIN (incorrect; PIN: 12346).
+//	State Before:
+//		- remaining number of tries: 3 tries
+//		- PIN is not validated
+// 	State After:
+//		- remaining number of tries: 2 tries
+//		- PIN is still not validated
+// 		- SW1: 63
+
+0x80 0x20 0x00 0x00 0x05 0x01 0x02 0x03 0x04 0x06 0x7F;
+
+
+
+//	Verify PIN (correct; PIN: 12345).
+//	State Before:
+//		- remaining number of tries: 2 tries
+//		- PIN is not validated
+//	State After:
+//		- remaining number of tries: 3 tries
+//		- PIN is validated
+//		- SW1: 90
+
+0x80 0x20 0x00 0x00 0x05 0x01 0x02 0x03 0x04 0x05 0x7F;
+
+
+
+//	Credit 100 RON (0x64) into the card.
+//	State Before:
+//  	- balance: 0 RON
+//		- remaining number of trips: 0 trips
+//	State After:
+//  	- balance: 100 RON
+//		- remaining number of trips: 0 trips
+//		- SW1: 90
+
 0x80 0x30 0x00 0x00 0x01 0x64 0x7F;
 
-// Purchase Bus subscription (P1=1)
-// State Before: balance=100, subTrips=0
-// State After: balance=40, subTrips=20
+
+
+//	Check the balance.
+//	State Before:
+//  	- balance: 100 RON
+//		- remaining number of trips: 0 trips
+//	State After:
+//		- balance: 100 RON (0x00 0x64)
+//		- remaining number of trips: 0 trips (0x00)
+//		- SW1: 90
+
+0x80 0x50 0x00 0x00 0x00 0x7F;
+
+
+
+//	Purchase a bus pass (20 trips for 60 RON).
+//	State Before:
+//		- balance: 100 RON
+//		- remaining number of trips: 0 trips
+//	State After:
+//		- balance: 40 RON
+//		- remaining number of trips: 20 trips
+//		- SW1: 90
+
 0x80 0x70 0x01 0x00 0x00 0x7F;
 
-// Get RON balance
-// State Before: balance=40
-// State After: no change, returns 00 28
-0x80 0x50 0x00 0x00 0x01 0x01 0x7F;
 
-// Get subscription trips
-// State Before: subTrips=20
-// State After: no change, returns 14
-0x80 0x50 0x00 0x00 0x01 0x02 0x7F;
 
-// Use subscription for one bus trip
-// State Before: subTrips=20
-// State After: subTrips=19
+//	Check the balance.
+//	State Before:
+//		- balance: 40 RON
+//		- remaining number of trips: 20 trips
+//	State After:
+//		- balance: 40 RON (0x00 0x28)
+//		- remaining number of trips: 20 trips (0x14)
+//		- SW1: 90
+
+0x80 0x50 0x00 0x00 0x00 0x7F;
+
+
+
+//	Use the bus pass for a bus trip.
+//	State Before:
+//		- balance: 40 RON
+//		- remaining number of trips: 20 trips
+//	State After:
+//		- balance: 40 RON
+//		- remaining number of trips: 19 trips
+//		- SW1: 90
+
 0x80 0x40 0x01 0x00 0x01 0x01 0x7F;
 
-// Confirm subscription trips
-// State Before: subTrips=19
-// State After: no change, returns 13? (ensure correctness)
-0x80 0x50 0x00 0x00 0x01 0x02 0x7F;
 
-// Purchase single tram ticket at 10–12 discount (P1=2, P2=1)
-// State Before: balance=40
-// State After: balance=39
+
+//	Check the balance.
+//	State Before:
+//		- balance: 40 RON
+//		- remaining number of trips: 19 trips
+//	State After:
+//		- balance: 40 RON (0x00 0x28)
+//		- remaining number of trips: 19 trips (0x13)
+//		- SW1: 90
+
+0x80 0x50 0x00 0x00 0x00 0x7F;
+
+
+
+//	Buy a tram ticket at morning fare (P1 = 0x02 - tram, P2 = 0x01 - morning fare).
+//	State Before:
+//		- balance: 40 RON
+//		- remaining number of trips: 19 trips
+//	State After:
+//		- balance: 39 RON
+//		- remaining number of trips: 19 trips
+//		- SW1: 90
+
 0x80 0x40 0x02 0x01 0x01 0x01 0x7F;
 
-// Confirm RON balance
-// State Before: balance=39
-// State After: no change, returns 00 27
-0x80 0x50 0x00 0x00 0x01 0x01 0x7F;
 
-// Weekend group purchase: 12 bus tickets (P1=1,P2=2,count=12)
-// unit=2, total=24, group 20% →19
-// State Before: balance=39
-// State After: balance=20
-0x80 0x40 0x01 0x02 0x01 0x0C 0x7F;
 
-// Confirm RON balance
-// State Before: balance=20
-// State After: no change, returns 00 14
-0x80 0x50 0x00 0x00 0x01 0x01 0x7F;
+//	Check the balance.
+//	State Before:
+//		- balance: 39 RON
+//		- remaining number of trips: 19 trips
+//	State After:
+//		- balance: 39 RON (0x00 0x27)
+//		- remaining number of trips: 19 trips (0x13)
+//		- SW1: 90
 
-// Attempt >20 tickets (count=21)
-// State Before: balance=20
-// State After: no change, error SW_TOO_MANY_TICKETS
-0x80 0x40 0x01 0x00 0x01 0x15 0x7F;
+0x80 0x50 0x00 0x00 0x00 0x7F;
+
+
+
+//	Try to buy 21 tram tickets at full fare (P1 = 0x02 - tram, P2 = 0x00 - full fare, number of tickets = 21 (0x15)).
+//	State Before:
+//		- balance: 39 RON
+//		- remaining number of trips: 19 trips
+//	State After:
+//		- balance: 39 RON
+//		- remaining number of trips: 19 trips
+//		- SW1: 6a (error - attempting to buy more than 20 tickets)
+
+0x80 0x40 0x02 0x00 0x01 0x15 0x7F;
+
+
+
+//	Check the balance.
+//	State Before:
+//		- balance: 39 RON
+//		- remaining number of trips: 19 trips
+//	State After:
+//		- balance: 39 RON (0x00 0x27)
+//		- remaining number of trips: 19 trips (0x13)
+//		- SW1: 90
+
+0x80 0x50 0x00 0x00 0x00 0x7F;
+
+
+
+//	Buy 4 tram tickets at full fare (P1 = 0x02 - tram, P2 = 0x00 - full fare, number of tickets = 4 (0x04); total cost - 8 RON).
+//	State Before:
+//		- balance: 39 RON
+//		- remaining number of trips: 19 trips
+//	State After:
+//		- balance: 31 RON
+//		- remaining number of trips: 19 trips
+//		- SW1: 90
+
+0x80 0x40 0x02 0x00 0x01 0x04 0x7F;
+
+
+
+//	Check the balance.
+//	State Before:
+//		- balance: 31 RON
+//		- remaining number of trips: 19 trips
+//	State After:
+//		- balance: 31 RON (0x00 0x1F)
+//		- remaining number of trips: 19 trips (0x13)
+//		- SW1: 90
+
+0x80 0x50 0x00 0x00 0x00 0x7F;
+
+
+
+//	Try to buy 20 tram tickets at full fare (P1 = 0x02 - tram, P2 = 0x00 - full fare, number of tickets = 20 (0x14));
+//	total cost - 40 RON, discounted total - 32 RON).
+//	State Before:
+//		- balance: 31 RON
+//		- remaining number of trips: 19 trips
+//	State After:
+//		- balance: 31 RON (0x00 0x1F)
+//		- remaining number of trips: 19 trips (0x13)
+//		- SW1: 6a (error - not enough money to buy the required number of tickets)
+
+0x80 0x40 0x02 0x00 0x01 0x14 0x7F;
+
+
+
+//	Check the balance.
+//	State Before:
+//		- balance: 31 RON
+//		- remaining number of trips: 19 trips
+//	State After:
+//		- balance: 31 RON (0x00 0x1F)
+//		- remaining number of trips: 19 trips (0x13)
+//		- SW1: 90
+
+0x80 0x50 0x00 0x00 0x00 0x7F;
+
+
+
+//	Buy 15 tram tickets at full fare (P1 = 0x02 - tram, P2 = 0x00 - full fare, number of tickets = 15 (0x0F));
+//	total cost - 30 RON, discounted total - 24 RON).
+//	State Before:
+//		- balance: 31 RON
+//		- remaining number of trips: 19 trips
+//	State After:
+//		- balance: 7 RON (0x00 0x07)
+//		- remaining number of trips: 19 trips (0x13)
+//		- SW1: 90
+
+0x80 0x40 0x02 0x00 0x01 0x0F 0x7F;
+
+
+
+//	Check the balance.
+//	State Before:
+//		- balance: 7 RON
+//		- remaining number of trips: 19 trips
+//	State After:
+//		- balance: 7 RON (0x00 0x07)
+//		- remaining number of trips: 19 trips (0x13)
+//		- SW1: 90
+
+0x80 0x50 0x00 0x00 0x00 0x7F;
+
+
+
+//	Buy 3 tram tickets at weekend fare (P1 = 0x02 - tram, P2 = 0x02 - weekend fare, number of tickets = 3 (0x03),
+//	total cost - 6 RON, reduced to 3 RON).
+//	State Before:
+//		- balance: 7 RON
+//		- remaining number of trips: 19 trips
+//	State After:
+//		- balance: 4 RON
+//		- remaining number of trips: 19 trips
+//		- SW1: 90
+
+0x80 0x40 0x02 0x02 0x01 0x03 0x7F;
+
+
+
+//	Check the balance.
+//	State Before:
+//		- balance: 4 RON
+//		- remaining number of trips: 19 trips
+//	State After:
+//		- balance: 4 RON (0x00 0x04)
+//		- remaining number of trips: 19 trips (0x13)
+//		- SW1: 90
+
+0x80 0x50 0x00 0x00 0x00 0x7F;
+
+
+
+//	Try to buy 1 bus ticket at full fare (P1 = 0x01 - bus, P2 = 0x00 - full fare, number of tickets = 1 (0x01),
+//	total cost - 4 RON, but actually 0 because I have a pass).
+//	State Before:
+//		- balance: 4 RON
+//		- remaining number of trips: 19 trips
+//	State After:
+//		- balance: 4 RON
+//		- remaining number of trips: 18 trips
+//		- SW1: 90
+
+0x80 0x40 0x01 0x00 0x01 0x01 0x7F;
+
+
+
+//	Check the balance.
+//	State Before:
+//		- balance: 4 RON
+//		- remaining number of trips: 18 trips
+//	State After:
+//		- balance: 4 RON (0x00 0x04)
+//		- remaining number of trips: 18 trips (0x12)
+//		- SW1: 90
+
+0x80 0x50 0x00 0x00 0x00 0x7F;
+
+
+
+//	Buy 1 bus ticket at full fare for a friend and use the pass for myself (P1 = 0x01 - bus, P2 = 0x00 - full fare,
+//	number of tickets = 2 (0x02), total cost - 4 RON).
+//	State Before:
+//		- balance: 4 RON
+//		- remaining number of trips: 18 trips
+//	State After:
+//		- balance: 0 RON
+//		- remaining number of trips: 17 trips
+//		- SW1: 90
+
+0x80 0x40 0x01 0x00 0x01 0x02 0x7F;
+
+
+
+//	Check the balance.
+//	State Before:
+//		- balance: 0 RON
+//		- remaining number of trips: 17 trips
+//	State After:
+//		- balance: 0 RON (0x00 0x00)
+//		- remaining number of trips: 17 trips (0x11)
+//		- SW1: 90
+
+0x80 0x50 0x00 0x00 0x00 0x7F;
