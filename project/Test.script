@@ -1,0 +1,148 @@
+// Homework 3 – HealthApplet Functional Tests
+output on;
+
+//	Select the Health applet.
+//	State Before:
+//		- card powered up, no applet selected
+//	State After:
+//		- Health applet selected
+//		- SW1: 90
+0x00 0xA4 0x04 0x00 0x09 0xA0 0x00 0x00 0x00 0x63 0x03 0x01 0x0C 0x06 0x7F;
+
+//	Verify PIN (correct; PIN = “1234”).
+//	State Before:
+//		- remaining tries: 3
+//		- PIN not validated
+//	State After:
+//		- remaining tries: 3
+//		- PIN validated
+//		- SW1: 90
+//	(Replace the 32 data bytes below with your actual IV||Ciphertext for “1234”)
+0x80 0x20 0x00 0x00 0x20 \
+   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 \
+   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 \
+0x7F;
+
+//	Read out patient data (initially empty).
+//	State Before:
+//		- PIN validated
+//		- all 29 bytes zero
+//	State After:
+//		- no change to patientData
+//		- SW1: 90
+0x80 0x30 0x00 0x00 0x00 0x7F;
+
+//	Update PIN from “1234” to “5678”.
+//	State Before:
+//		- PIN validated under “1234”
+//	State After:
+//		- PIN changed to “5678”
+//		- PIN no longer validated
+//		- SW1: 90
+0x80 0x24 0x00 0x00 0x10 \
+   0x31 0x32 0x33 0x34 0x00 0x00 0x00 0x00 \
+   0x35 0x36 0x37 0x38 0x00 0x00 0x00 0x00 \
+0x7F;
+
+//	Verify PIN (correct; PIN = “5678”).
+//	State Before:
+//		- remaining tries: 3
+//		- PIN not validated
+//	State After:
+//		- remaining tries: 3
+//		- PIN validated
+//		- SW1: 90
+//	(Replace the 32 data bytes below with your actual IV||Ciphertext for “5678”)
+0x80 0x20 0x00 0x00 0x20 \
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 \
+   11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 \
+0x7F;
+
+//	Set chronic diagnostic code = 0x01.
+//	State Before:
+//		- patientData[5] == 0x00
+//	State After:
+//		- patientData[5] == 0x01
+//		- SW1: 90
+0x80 0x40 0x00 0x00 0x01 0x01 0x7F;
+
+//	Set chronic specialty code = 0x02.
+//	State Before:
+//		- patientData[6] == 0x00
+//	State After:
+//		- patientData[6] == 0x02
+//		- SW1: 90
+0x80 0x40 0x01 0x00 0x01 0x02 0x7F;
+
+//	Set donor flag = 0x01.
+//	State Before:
+//		- patientData[7] == 0x00
+//	State After:
+//		- patientData[7] == 0x01
+//		- SW1: 90
+0x80 0x40 0x02 0x00 0x01 0x01 0x7F;
+
+//	Read back patient data (verify chronic & donor).
+//	State Before:
+//		- patientData[5..7] == {0,0,0}
+//	State After:
+//		- patientData[5..7] == {1,2,1}
+//		- SW1: 90
+0x80 0x30 0x00 0x00 0x00 0x7F;
+
+//	Add consult #1: diag=0x10, spec=0x03, date=01/01/25.
+//	State Before:
+//		- consult slots [8..12] all zero
+//	State After:
+//		- slots [8..12] = {0x10,0x03,0x01,0x01,0x19}
+//		- SW1: 90
+0x80 0x50 0x10 0x03 0x03 0x01 0x01 0x19 0x7F;
+
+//	Add consult #2: diag=0x11, spec=0x04, date=02/02/25.
+//	State Before:
+//		- only consult #1 present
+//	State After:
+//		- slots [13..17] = {0x11,0x04,0x02,0x02,0x19}
+//		- SW1: 90
+0x80 0x50 0x11 0x04 0x03 0x02 0x02 0x19 0x7F;
+
+//	Add consult #3: diag=0x12, spec=0x05, date=03/03/25.
+//	State Before:
+//		- consults #1,#2 present
+//	State After:
+//		- slots [18..22] = {0x12,0x05,0x03,0x03,0x19}
+//		- SW1: 90
+0x80 0x50 0x12 0x05 0x03 0x03 0x03 0x19 0x7F;
+
+//	Add consult #4 (evicts #1): diag=0x13, spec=0x06, date=04/04/25.
+//	State Before:
+//		- consults #1,#2,#3 in slots [8..22]
+//	State After:
+//		- consults #2,#3,#4 in slots [8..22]
+//		- SW1: 90
+0x80 0x50 0x13 0x06 0x03 0x04 0x04 0x19 0x7F;
+
+//	Read back patient data (verify consult shift).
+//	State Before:
+//		- slots contain #1,#2,#3
+//	State After:
+//		- slots contain #2,#3,#4
+//		- SW1: 90
+0x80 0x30 0x00 0x00 0x00 0x7F;
+
+//	Set medical vacation: start=05/05/25, end=14/05/25.
+//	State Before:
+//		- bytes[23..28] all zero
+//	State After:
+//		- bytes[23..25] = {0x05,0x05,0x19}
+//		- bytes[26..28] = {0x0E,0x05,0x19}
+//		- SW1: 90
+0x80 0x60 0x00 0x00 0x06 0x05 0x05 0x19 0x0E 0x05 0x19 0x7F;
+
+//	Read back patient data (verify vacation).
+//	State Before:
+//		- vacation bytes unchanged
+//	State After:
+//		- vacation bytes updated
+//		- SW1: 90
+0x80 0x30 0x00 0x00 0x00 0x7F;
